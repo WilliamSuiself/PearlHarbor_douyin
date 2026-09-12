@@ -85,7 +85,7 @@ class DeviceOrientationTracker {
 
     try {
       _api.startGyroscope({
-        interval: 20,
+        interval: 'game',
         success: () => {
           console.log('[orientation] 陀螺仪启动成功')
           this._onGyroChange = (res) => {
@@ -214,7 +214,7 @@ class DeviceOrientationTracker {
 
     try {
       _api.startDeviceMotionListening({
-        interval: 20,
+        interval: 'game',
         success: () => {
           console.log('[orientation] DeviceMotion 启动成功')
           this._onMotionChange = (res) => {
@@ -304,6 +304,7 @@ class DeviceOrientationTracker {
       // （官方文档：暂不支持interval属性，回调固定 5 次/秒），传了也会被忽略，
       // 这里干脆不传，避免个别版本对未知参数做严格校验导致 fail。
       _api.startAccelerometer({
+        interval: 'game',
         success: () => {
           this._onAccelChange = (res) => {
             // 小游戏加速度计返回已归一化到 g 单位（0∶1.0）
