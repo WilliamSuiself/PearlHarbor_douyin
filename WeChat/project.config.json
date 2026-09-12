@@ -1,0 +1,20 @@
+{
+  "description": "Project configuration file",
+  "packOptions": {
+    "ignore": []
+  },
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "newFeature": true,
+    "autoAudits": false
+  },
+  "compileType": "game",
+  "libVersion": "2.19.4",
+  "appid": "touristappid",
+  "projectname": "PearlHarbor",
+  "condition": {}
+}
