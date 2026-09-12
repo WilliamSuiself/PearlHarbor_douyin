@@ -71,7 +71,6 @@ class GameRenderer {
     // 枪口火焰使用程序化绘制（贴图无真实透明通道，效果不佳）
     this._muzzleFlashImg = null
     // 装备贴图
-    this._equipGunImg = this._loadImage(canvas, 'images/equip_gun.png')
     this._equipTorpedoImg = this._loadImage(canvas, 'images/equip_torpedo.png')
     this._gridIconImages = {
       barrel: this._loadImage(canvas, 'images/枪管.png'),
