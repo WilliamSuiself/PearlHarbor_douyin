@@ -26,6 +26,55 @@ try {
 // ========== 平台 API ==========
 var _api = tt
 
+// ========== 侧边栏复访能力 ==========
+var sidebarSupported = false
+var lastShowOptions = null
+
+function _onAppShow(options) {
+  lastShowOptions = options || {}
+  // 通过首页侧边栏返回时，scene=021036，launch_from=homepage，location=sidebar_card
+  var o = lastShowOptions
+  if (o && (o.scene === '021036' || (o.launch_from === 'homepage' && o.location === 'sidebar_card'))) {
+    console.log('[pearlharbor] 从侧边栏返回', o)
+  }
+}
+
+try {
+  _api.onShow(_onAppShow)
+  console.log('[pearlharbor] onShow 监听已注册')
+} catch (e) {
+  console.warn('[pearlharbor] onShow 监听失败:', e)
+}
+
+try {
+  _api.checkScene && _api.checkScene({
+    scene: 'sidebar',
+    success: function(res) {
+      sidebarSupported = !!(res && res.isExist)
+      console.log('[pearlharbor] checkScene sidebar:', sidebarSupported)
+    },
+    fail: function(err) {
+      console.warn('[pearlharbor] checkScene 失败:', err)
+    }
+  })
+} catch (e) {
+  console.warn('[pearlharbor] checkScene 调用失败:', e)
+}
+
+function doOpenSidebar() {
+  console.log('[pearlharbor] 调用 tt.navigateToScene({ scene: "sidebar" })')
+  try {
+    _api.navigateToScene && _api.navigateToScene({
+      scene: 'sidebar',
+      success: function(res) { console.log('[pearlharbor] navigateToScene success', res) },
+      fail: function(err) { console.warn('[pearlharbor] navigateToScene fail', err) },
+      complete: function() { console.log('[pearlharbor] navigateToScene complete') }
+    })
+  } catch (e) {
+    console.warn('[pearlharbor] navigateToScene 调用异常:', e)
+  }
+}
+
 // ========== 初始化 Canvas ==========
 var sysInfo = _api.getSystemInfoSync()
 var dpr = sysInfo.pixelRatio || 2
@@ -570,7 +619,16 @@ function drawStartScreen(c, w, h) {
   var btnW = 200, btnH = 44
   var btnX = rightCx - btnW / 2, btnY = cy + 16
   drawBtn(c, btnX, btnY, btnW, btnH, '进入战斗', '#FFB347', 'rgba(255,120,20,0.22)')
-  uiButtons = [{ x: btnX, y: btnY, w: btnW, h: btnH, action: doStartGame }]
+
+  // 侧边栏复访入口（平台必接能力）
+  var sbW = 100, sbH = 32
+  var sbX = w - sbW - 12, sbY = 12
+  drawBtn(c, sbX, sbY, sbW, sbH, '去侧边栏', '#00FFCC', 'rgba(0,255,200,0.15)')
+
+  uiButtons = [
+    { x: sbX, y: sbY, w: sbW, h: sbH, action: doOpenSidebar },
+    { x: btnX, y: btnY, w: btnW, h: btnH, action: doStartGame }
+  ]
 
   c.fillStyle = 'rgba(200,220,255,0.5)'
   c.font = '10px -apple-system, PingFang SC, sans-serif'
