@@ -83,24 +83,33 @@ class DeviceOrientationTracker {
       return
     }
 
-    try {
-      _api.startGyroscope({
-        interval: 20,
-        success: () => {
-          console.log('[orientation] 陀螺仪启动成功')
-          this._onGyroChange = (res) => {
-            this._handleGyro(res)
+    const doStart = () => {
+      try {
+        _api.startGyroscope({
+          interval: 20,
+          success: () => {
+            console.log('[orientation] 陀螺仪启动成功')
+            this._onGyroChange = (res) => { this._handleGyro(res) }
+            _api.onGyroscopeChange(this._onGyroChange)
+          },
+          fail: (err) => {
+            console.warn('[orientation] 陀螺仪启动失败:', err, '，回退 DeviceMotion')
+            this._startDeviceMotion()
           }
-          _api.onGyroscopeChange(this._onGyroChange)
-        },
-        fail: (err) => {
-          console.warn('[orientation] 陀螺仪启动失败:', err, '，回退 DeviceMotion')
-          this._startDeviceMotion()
-        }
+        })
+      } catch (e) {
+        console.warn('[orientation] startGyroscope 异常:', e, '，回退 DeviceMotion')
+        this._startDeviceMotion()
+      }
+    }
+
+    try {
+      _api.stopGyroscope({
+        fail: () => {},
+        complete: () => { doStart() }
       })
     } catch (e) {
-      console.warn('[orientation] startGyroscope 异常:', e, '，回退 DeviceMotion')
-      this._startDeviceMotion()
+      doStart()
     }
   }
 
@@ -212,22 +221,31 @@ class DeviceOrientationTracker {
     this._prevBeta = null
     this._prevGamma = null
 
-    try {
-      _api.startDeviceMotionListening({
-        interval: 20,
-        success: () => {
-          console.log('[orientation] DeviceMotion 启动成功')
-          this._onMotionChange = (res) => {
-            this._handleDeviceMotion(res)
+    const doStart = () => {
+      try {
+        _api.startDeviceMotionListening({
+          interval: 20,
+          success: () => {
+            console.log('[orientation] DeviceMotion 启动成功')
+            this._onMotionChange = (res) => { this._handleDeviceMotion(res) }
+            _api.onDeviceMotionChange(this._onMotionChange)
+          },
+          fail: (err) => {
+            console.warn('[orientation] DeviceMotion 启动失败:', err)
           }
-          _api.onDeviceMotionChange(this._onMotionChange)
-        },
-        fail: (err) => {
-          console.warn('[orientation] DeviceMotion 启动失败:', err)
-        }
+        })
+      } catch (e) {
+        console.warn('[orientation] startDeviceMotionListening 异常:', e)
+      }
+    }
+
+    try {
+      _api.stopDeviceMotionListening({
+        fail: () => {},
+        complete: () => { doStart() }
       })
     } catch (e) {
-      console.warn('[orientation] startDeviceMotionListening 异常:', e)
+      doStart()
     }
   }
 
@@ -299,25 +317,34 @@ class DeviceOrientationTracker {
     // Web 环境不需要加速度计（横屏方向由系统管理）
     if (typeof window !== 'undefined' && window.document) return
 
-    try {
-      // 注意：抖音小游戏 tt.startAccelerometer 不支持 interval 参数
-      // （官方文档：暂不支持interval属性，回调固定 5 次/秒），传了也会被忽略，
-      // 这里干脆不传，避免个别版本对未知参数做严格校验导致 fail。
-      _api.startAccelerometer({
-        success: () => {
-          this._onAccelChange = (res) => {
-            // 小游戏加速度计返回已归一化到 g 单位（0∶1.0）
-            // 乘 9.8 转为 m/s² 以复用 _handleAccelPitch（同时更新 orientSign、pitch）
-            this._handleAccelPitch(res.x * 9.8, res.y * 9.8, res.z * 9.8)
+    const doStart = () => {
+      try {
+        // 注意：抖音小游戏 tt.startAccelerometer 不支持 interval 参数
+        // （官方文档：暂不支持interval属性，回调固定 5 次/秒），传了也会被忽略，
+        // 这里干脆不传，避免个别版本对未知参数做严格校验导致 fail。
+        _api.startAccelerometer({
+          success: () => {
+            this._onAccelChange = (res) => {
+              this._handleAccelPitch(res.x * 9.8, res.y * 9.8, res.z * 9.8)
+            }
+            _api.onAccelerometerChange(this._onAccelChange)
+          },
+          fail: (err) => {
+            console.warn('[orientation] 加速度计不可用，使用默认横屏方向', err)
           }
-          _api.onAccelerometerChange(this._onAccelChange)
-        },
-        fail: () => {
-          console.warn('[orientation] 加速度计不可用，使用默认横屏方向')
-        }
+        })
+      } catch (e) {
+        console.warn('[orientation] startAccelerometer 异常:', e)
+      }
+    }
+
+    try {
+      _api.stopAccelerometer({
+        fail: () => {},
+        complete: () => { doStart() }
       })
     } catch (e) {
-      console.warn('[orientation] startAccelerometer 异常:', e)
+      doStart()
     }
   }
 
