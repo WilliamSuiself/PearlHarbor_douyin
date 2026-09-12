@@ -29,6 +29,7 @@ var _api = tt
 // ========== 侧边栏复访能力 ==========
 var sidebarSupported = false
 var lastShowOptions = null
+var sidebarRewardPending = false
 
 function _onAppShow(options) {
   lastShowOptions = options || {}
@@ -36,6 +37,9 @@ function _onAppShow(options) {
   var o = lastShowOptions
   if (o && (o.scene === '021036' || (o.launch_from === 'homepage' && o.location === 'sidebar_card'))) {
     console.log('[pearlharbor] 从侧边栏返回', o)
+    sidebarRewardPending = true
+    // 如果游戏已在运行，直接发奖；否则等 doStartGame 时发放
+    applySidebarReward()
   }
 }
 
@@ -72,6 +76,30 @@ function doOpenSidebar() {
     })
   } catch (e) {
     console.warn('[pearlharbor] navigateToScene 调用异常:', e)
+  }
+}
+
+// 侧边栏返回奖励：免费解锁右下角 2 格并部署鱼雷
+function applySidebarReward() {
+  if (!engine || !sidebarRewardPending) return
+  if (!engine.inventory || !invMod || !invMod.GRID_ITEM_DEFS) return
+  sidebarRewardPending = false
+
+  // 右下角两格：鱼雷 1x2，放置在 (4,3)，占用 (4,3) 和 (4,4)
+  var unlocked3 = engine.inventory.unlockCell(4, 3)
+  var unlocked4 = engine.inventory.unlockCell(4, 4)
+  var torpDef = invMod.GRID_ITEM_DEFS[invMod.GridItemType.TORPEDO_TUBE]
+  var placed = null
+  if (torpDef) {
+    placed = engine.inventory.place(torpDef, 4, 3)
+  }
+
+  if (placed) {
+    console.log('[pearlharbor] 侧边栏奖励：右下角鱼雷已部署', placed)
+    if (engine._showPickup) engine._showPickup('侧边栏奖励：右下角鱼雷已部署', '#00FFCC')
+  } else if (unlocked3 || unlocked4) {
+    console.log('[pearlharbor] 侧边栏奖励：已解锁右下角格子')
+    if (engine._showPickup) engine._showPickup('侧边栏奖励：右下角格子已解锁', '#00FFCC')
   }
 }
 
@@ -192,6 +220,8 @@ function doStartGame() {
   engine = new GameEngine({ soundManager: soundManager })
   engine.initSound()
   engine.startGame()
+  // 如果从侧边栏返回后点击开始，自动发放奖励
+  applySidebarReward()
   scene = 'playing'
   uiButtons = []
   gameOverSaved = false
