@@ -177,8 +177,9 @@ class DeviceOrientationTracker {
     // 3. 用滤波后的数据计算倾斜角 → pitch
     const tiltRad = Math.atan2(this._filteredAz, Math.abs(this._filteredAx))
     const tiltDeg = tiltRad * 180.0 / Math.PI
-    // 中立位置：自然持握（屏幕约 40-50°）时初始 pitch 约 45°，方便对空
-    const neutralAngle = -5.0
+    // 中立位置：新玩家自然持握（屏幕约 -30°~0°）时初始 pitch 也足够高，
+    // 保证开场就能看到天空/飞机，而不是海面
+    const neutralAngle = -50.0
     const rawPitch = (tiltDeg - neutralAngle) * 1.2
     this._pitch = Math.max(-60, Math.min(60, rawPitch))
     this._clampPitch()
@@ -357,9 +358,10 @@ class DeviceOrientationTracker {
 
   reset() {
     this._yaw = 0
-    this._pitch = 0
+    // 开场默认仰角 45°，避免第一帧就盯着海面
+    this._pitch = 45
     this._smoothYaw = 0
-    this._smoothPitch = 0
+    this._smoothPitch = 45
     this._lastTime = 0
     this._prevBeta = null
     this._prevGamma = null
