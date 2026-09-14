@@ -24,7 +24,7 @@ try {
 } catch (e) { console.error('[pearlharbor] sound 加载失败:', e) }
 
 // ========== 平台 API ==========
-var _api = tt
+var _api = (typeof tt !== 'undefined' ? tt : (typeof wx !== 'undefined' ? wx : {}))
 
 // ========== 侧边栏复访能力 ==========
 var sidebarSupported = false
@@ -110,7 +110,7 @@ var W = sysInfo.windowWidth || sysInfo.screenWidth || 800
 var H = sysInfo.windowHeight || sysInfo.screenHeight || 600
 console.log('[pearlharbor] 屏幕:', W, 'x', H, 'dpr:', dpr)
 
-var canvas = tt.createCanvas()
+var canvas = _api.createCanvas()
 canvas.width = W * dpr
 canvas.height = H * dpr
 var ctx = canvas.getContext('2d')
@@ -133,7 +133,7 @@ console.log('[pearlharbor] 渲染器和音效初始化完成')
 // 首页背景图
 var titleImg = null
 try {
-  titleImg = tt.createImage()
+  titleImg = _api.createImage()
   titleImg._loaded = false
   titleImg.onload = function() { titleImg._loaded = true }
   titleImg.onerror = function(e) { console.warn('[pearlharbor] title image load failed:', e) }
@@ -145,7 +145,7 @@ var buyIconImgs = {}
 var deployIconImgs = {}
 function loadIcon(targetMap, key, src) {
   try {
-    var img = tt.createImage()
+    var img = _api.createImage()
     img._loaded = false
     img.onload = function() { img._loaded = true }
     img.onerror = function() {}
@@ -192,6 +192,58 @@ loadIcon(deployIconImgs, 'ammo_armor_pierce', 'images/穿甲弹.png')
 var engine = null
 var highScore = 0
 try { highScore = _api.getStorageSync('highScore') || 0 } catch (e) {}
+
+// ========== 排行榜 ==========
+var leaderboard = []
+var lastPlayerName = ''
+try {
+  var lbRaw = _api.getStorageSync('leaderboard') || '[]'
+  if (lbRaw) leaderboard = JSON.parse(lbRaw)
+} catch (e) {}
+if (!Array.isArray(leaderboard)) leaderboard = []
+
+function saveLeaderboard() {
+  try { _api.setStorageSync('leaderboard', JSON.stringify(leaderboard)) } catch (e) {}
+}
+
+function addLeaderboardEntry(name, score) {
+  if (!name || !score) return
+  leaderboard.push({
+    name: String(name).substring(0, 12),
+    score: Number(score),
+    time: Date.now()
+  })
+  leaderboard.sort(function(a, b) { return b.score - a.score })
+  if (leaderboard.length > 10) leaderboard.length = 10
+  saveLeaderboard()
+  if (score > highScore) {
+    highScore = score
+    try { _api.setStorageSync('highScore', highScore) } catch (e) {}
+  }
+}
+
+function doEnterName() {
+  if (!engine) return
+  try {
+    _api.showModal({
+      title: '输入昵称',
+      content: lastPlayerName || '',
+      editable: true,
+      placeholderText: '请输入你的名字',
+      confirmText: '保存',
+      cancelText: '取消',
+      success: function(res) {
+        if (res.confirm && res.content) {
+          lastPlayerName = res.content
+          addLeaderboardEntry(res.content, engine.score)
+          console.log('[leaderboard] 已保存', res.content, engine.score)
+        }
+      }
+    })
+  } catch (e) {
+    console.warn('[leaderboard] showModal 失败', e)
+  }
+}
 
 // ========== 场景管理 ==========
 var scene = 'start'
@@ -650,15 +702,14 @@ function drawStartScreen(c, w, h) {
   var btnX = rightCx - btnW / 2, btnY = cy + 16
   drawBtn(c, btnX, btnY, btnW, btnH, '进入战斗', '#FFB347', 'rgba(255,120,20,0.22)')
 
-  // 侧边栏复访入口（平台必接能力）
-  var sbW = 100, sbH = 32
-  var sbX = w - sbW - 12, sbY = 12
-  drawBtn(c, sbX, sbY, sbW, sbH, '去侧边栏', '#00FFCC', 'rgba(0,255,200,0.15)')
-
-  uiButtons = [
-    { x: sbX, y: sbY, w: sbW, h: sbH, action: doOpenSidebar },
-    { x: btnX, y: btnY, w: btnW, h: btnH, action: doStartGame }
-  ]
+  // 侧边栏复访入口（仅当平台支持时才显示，如抖音）
+  uiButtons = [{ x: btnX, y: btnY, w: btnW, h: btnH, action: doStartGame }]
+  if (sidebarSupported) {
+    var sbW = 100, sbH = 32
+    var sbX = w - sbW - 12, sbY = 12
+    drawBtn(c, sbX, sbY, sbW, sbH, '去侧边栏', '#00FFCC', 'rgba(0,255,200,0.15)')
+    uiButtons.push({ x: sbX, y: sbY, w: sbW, h: sbH, action: doOpenSidebar })
+  }
 
   c.fillStyle = 'rgba(200,220,255,0.5)'
   c.font = '10px -apple-system, PingFang SC, sans-serif'
@@ -720,14 +771,36 @@ function drawGameOverOverlay(c, w, h) {
   c.font = '14px -apple-system, PingFang SC, sans-serif'
   c.fillText('击杀 ' + kills + '     波次 ' + wave, cx, cy + 30)
 
+  // 排行榜
+  c.textAlign = 'left'
+  c.textBaseline = 'top'
+  c.fillStyle = 'rgba(255,255,255,0.6)'
+  c.font = 'bold 14px -apple-system, PingFang SC, sans-serif'
+  var lbX = w - 150, lbY = cy - 70
+  c.fillText('排行榜', lbX, lbY)
+  c.font = '11px -apple-system, PingFang SC, sans-serif'
+  for (var i = 0; i < Math.min(5, leaderboard.length); i++) {
+    var entry = leaderboard[i]
+    var line = (i + 1) + '. ' + entry.name + '  ' + entry.score
+    c.fillStyle = (i < 3) ? '#FFD700' : 'rgba(255,255,255,0.5)'
+    c.fillText(line, lbX, lbY + 20 + i * 18)
+  }
+  if (leaderboard.length === 0) {
+    c.fillStyle = 'rgba(255,255,255,0.35)'
+    c.fillText('暂无记录', lbX, lbY + 20)
+  }
+
   var btnW = 180, btnH = 40, btnX = cx - btnW / 2
   var restartY = cy + 56
   drawBtn(c, btnX, restartY, btnW, btnH, '重新挑战', '#00FFFF', 'rgba(0,255,255,0.1)')
   var backY = cy + 106
   drawBtn(c, btnX, backY, btnW, btnH, '返回', '#888888', 'rgba(136,136,136,0.1)')
+  var nameY = cy + 156
+  drawBtn(c, btnX, nameY, btnW, btnH, '输入名字保存成绩', '#FFB347', 'rgba(255,120,20,0.22)')
   uiButtons = [
     { x: btnX, y: restartY, w: btnW, h: btnH, action: doRestart },
-    { x: btnX, y: backY, w: btnW, h: btnH, action: doBackToStart }
+    { x: btnX, y: backY, w: btnW, h: btnH, action: doBackToStart },
+    { x: btnX, y: nameY, w: btnW, h: btnH, action: doEnterName }
   ]
 }
 
@@ -1279,7 +1352,7 @@ _raf(mainLoop)
 console.log('[pearlharbor] 游戏启动完成')
 
 // ========== 触摸事件绑定（抖音小游戏全局事件） ==========
-tt.onTouchStart(function (e) {
+_api.onTouchStart(function (e) {
   if (!e || !e.touches || e.touches.length === 0) return
   var t = e.touches[0]
   var x = t.clientX !== undefined ? t.clientX : (t.x !== undefined ? t.x : 0)
@@ -1298,7 +1371,7 @@ tt.onTouchStart(function (e) {
   touchOnButton = false
 })
 
-tt.onTouchMove(function (e) {
+_api.onTouchMove(function (e) {
   if (!e || !e.touches || e.touches.length === 0) return
   var t = e.touches[0]
   var x = t.clientX !== undefined ? t.clientX : (t.x !== undefined ? t.x : 0)
@@ -1319,7 +1392,7 @@ tt.onTouchMove(function (e) {
   }
 })
 
-tt.onTouchEnd(function (e) {
+_api.onTouchEnd(function (e) {
   // 军火库拖拽模式：松手尝试放置
   if (scene === 'shop' && isDragging) {
     finishDragPlace(dragX, dragY)
